@@ -11,8 +11,11 @@
               clearable
               :disabled="loading"
             >
+              <template #prepend>
+                <div class="api-key-label">API密钥</div>
+              </template>
               <template #append>
-                <el-button @click="saveApiKey" :disabled="loading">保存</el-button>
+                <el-button type="primary" @click="saveApiKey" :disabled="loading">保存</el-button>
               </template>
             </el-input>
           </div>
@@ -21,13 +24,16 @@
     </el-row>
 
     <el-row :gutter="20" class="mt-20">
-      <el-col :span="12">
-        <el-card class="news-card">
+      <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
+        <el-card class="news-card" shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>时政新闻</span>
+              <div class="card-title">
+                <el-icon><Document /></el-icon>
+                <span>时政新闻</span>
+              </div>
               <el-button type="primary" @click="fetchPoliticalNews" :loading="state.loading.politicalNews">
-                刷新
+                <el-icon><Refresh /></el-icon> 刷新
               </el-button>
             </div>
           </template>
@@ -55,13 +61,16 @@
         </el-card>
       </el-col>
 
-      <el-col :span="12">
-        <el-card class="news-card">
+      <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
+        <el-card class="news-card" shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>金融新闻</span>
+              <div class="card-title">
+                <el-icon><Money /></el-icon>
+                <span>金融新闻</span>
+              </div>
               <el-button type="primary" @click="fetchFinancialNews" :loading="state.loading.financialNews">
-                刷新
+                <el-icon><Refresh /></el-icon> 刷新
               </el-button>
             </div>
           </template>
@@ -92,16 +101,19 @@
 
     <el-row :gutter="20" class="mt-20">
       <el-col :span="24">
-        <el-card class="selected-news-card">
+        <el-card class="selected-news-card" shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>已选择的新闻 ({{ state.selectedNews.length }})</span>
-              <div>
+              <div class="card-title">
+                <el-icon><Star /></el-icon>
+                <span>已选择的新闻 ({{ state.selectedNews.length }})</span>
+              </div>
+              <div class="card-actions">
                 <el-button type="danger" @click="clearSelectedNews" :disabled="state.selectedNews.length === 0">
-                  清空
+                  <el-icon><Delete /></el-icon> 清空
                 </el-button>
                 <el-button type="primary" @click="analyzeNews" :loading="state.loading.analysis" :disabled="state.selectedNews.length === 0">
-                  分析
+                  <el-icon><DataAnalysis /></el-icon> 分析
                 </el-button>
               </div>
             </div>
@@ -122,7 +134,7 @@
                   </div>
                   <div v-else-if="!news.content" class="empty-container">
                     <el-button type="primary" @click.stop="loadNewsContent(news)">
-                      加载内容
+                      <el-icon><Download /></el-icon> 加载内容
                     </el-button>
                   </div>
                   <div v-else class="news-content">
@@ -138,10 +150,13 @@
 
     <el-row :gutter="20" class="mt-20">
       <el-col :span="24">
-        <el-card class="analysis-card">
+        <el-card class="analysis-card" shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>分析结果</span>
+              <div class="card-title">
+                <el-icon><TrendCharts /></el-icon>
+                <span>分析结果</span>
+              </div>
             </div>
           </template>
           <div v-if="state.loading.analysis" class="loading-container">
@@ -170,11 +185,13 @@
             </div>
             
             <div v-else class="analysis-content">
-              <h3>新闻分析</h3>
+              <h3 class="section-title">
+                <el-icon><Reading /></el-icon> 新闻分析
+              </h3>
               <el-divider />
               
               <div v-for="(item, index) in state.analysisResult.analysis" :key="index" class="analysis-item">
-                <h4>{{ item.title }}</h4>
+                <h4 class="analysis-title">{{ item.title }}</h4>
                 <div class="key-points">
                   <p><strong>关键点：</strong></p>
                   <ul>
@@ -190,7 +207,9 @@
                 <el-divider v-if="index < state.analysisResult.analysis.length - 1" />
               </div>
               
-              <h3 class="mt-20">金价预测</h3>
+              <h3 class="section-title mt-20">
+                <el-icon><GoldMedal /></el-icon> 金价预测
+              </h3>
               <el-divider />
               
               <div class="prediction">
@@ -198,6 +217,7 @@
                   <el-tag
                     :type="getPredictionTagType(state.analysisResult.gold_price_prediction.trend)"
                     size="large"
+                    effect="dark"
                   >
                     预测：金价{{ getTrendText(state.analysisResult.gold_price_prediction.trend) }}
                   </el-tag>
@@ -222,6 +242,7 @@
                     v-for="(factor, factorIndex) in state.analysisResult.gold_price_prediction.key_factors"
                     :key="factorIndex"
                     class="factor-tag"
+                    effect="plain"
                   >
                     {{ factor }}
                   </el-tag>
@@ -239,6 +260,10 @@
 import { ref, onMounted, computed } from 'vue';
 import { useStore } from '../store';
 import { ElMessage } from 'element-plus';
+import { 
+  Document, Money, Star, Delete, DataAnalysis, 
+  Download, TrendCharts, Reading, GoldMedal, Refresh 
+} from '@element-plus/icons-vue';
 
 const store = useStore();
 const { state } = store;
@@ -365,7 +390,9 @@ onMounted(async () => {
 
 <style scoped>
 .home-container {
-  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px;
 }
 
 .mt-20 {
@@ -378,34 +405,73 @@ onMounted(async () => {
   align-items: center;
 }
 
-.news-card, .selected-news-card, .analysis-card, .api-key-card {
-  width: 100%;
+.card-title {
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.card-title .el-icon {
+  margin-right: 8px;
+  font-size: 18px;
+}
+
+.api-key-card {
+  margin-bottom: 20px;
+}
+
+.api-key-container {
+  display: flex;
+  align-items: center;
+}
+
+.api-key-label {
+  white-space: nowrap;
+  padding: 0 12px;
+  font-weight: bold;
+}
+
+.news-card, .selected-news-card, .analysis-card {
   height: 100%;
+  transition: all 0.3s;
+}
+
+.news-card:hover, .selected-news-card:hover, .analysis-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
 }
 
 .news-list {
   max-height: 400px;
   overflow-y: auto;
+  padding-right: 5px;
 }
 
 .news-item {
-  padding: 10px;
-  border-bottom: 1px solid #ebeef5;
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  background-color: #f9f9f9;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: all 0.2s;
+  border-left: 3px solid transparent;
 }
 
 .news-item:hover {
-  background-color: #f5f7fa;
+  background-color: #f0f0f0;
+  border-left-color: #409eff;
 }
 
 .news-item.selected {
   background-color: #ecf5ff;
+  border-left-color: #409eff;
 }
 
 .news-title {
   font-weight: bold;
-  margin-bottom: 5px;
+  margin-bottom: 8px;
+  line-height: 1.4;
 }
 
 .news-meta {
@@ -416,11 +482,8 @@ onMounted(async () => {
   color: #909399;
 }
 
-.loading-container, .empty-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100px;
+.selected-news-list {
+  margin-top: 10px;
 }
 
 .news-content-container {
@@ -430,6 +493,19 @@ onMounted(async () => {
 .news-content {
   white-space: pre-line;
   line-height: 1.6;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 10px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+}
+
+.loading-container, .empty-container {
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
 }
 
 .analysis-result {
@@ -440,12 +516,36 @@ onMounted(async () => {
   margin-bottom: 20px;
 }
 
-.missing-info {
+.missing-info ul {
   margin-top: 10px;
 }
 
-.analysis-item {
-  margin-bottom: 20px;
+.section-title {
+  display: flex;
+  align-items: center;
+  color: #409eff;
+}
+
+.section-title .el-icon {
+  margin-right: 8px;
+  font-size: 24px;
+}
+
+.analysis-title {
+  color: #303133;
+  margin-bottom: 15px;
+}
+
+.key-points ul {
+  padding-left: 20px;
+}
+
+.key-points li {
+  margin-bottom: 8px;
+}
+
+.implications {
+  margin-top: 15px;
 }
 
 .prediction-trend {
@@ -459,11 +559,28 @@ onMounted(async () => {
 }
 
 .factor-tag {
-  margin-right: 10px;
-  margin-bottom: 10px;
+  margin-right: 8px;
+  margin-bottom: 8px;
 }
 
-.api-key-container {
-  padding: 10px 0;
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .home-container {
+    padding: 0 10px;
+  }
+  
+  .news-list {
+    max-height: 300px;
+  }
+  
+  .prediction-trend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .confidence-progress {
+    width: 100%;
+  }
 }
 </style> 

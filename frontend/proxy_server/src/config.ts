@@ -22,11 +22,11 @@ export interface Config {
 
 const config: Config = {
   // 代理服务器配置
-  port: parseInt(process.env.VITE_PROXY_SERVER_PORT || '6000', 10),
-  baseUrl: process.env.VITE_PROXY_SERVER_API_BASE_URL || 'http://localhost:6000',
-  apiPath: '/api',
+  port: parseInt(process.env.VITE_PROXY_SERVER_PORT || '9999', 10),
+  baseUrl: `http://localhost:${process.env.VITE_PROXY_SERVER_PORT || '9999'}`,
+  apiPath: process.env.VITE_PROXY_SERVER_API_PATH || '/api',
   timeout: parseInt(process.env.VITE_PROXY_SERVER_API_TIMEOUT || '15000', 10),
-  
+
   // 新闻来源配置
   newsSources: {
     // 每个来源最多获取的新闻数量

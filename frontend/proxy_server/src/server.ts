@@ -5,12 +5,27 @@ import * as cheerio from 'cheerio';
 import config from './config.js';
 import { NewsSourceSelector, NewsItem } from './types.js';
 
-console.log('asdflkadslkfal')
 const app = express();
 const PORT = config.port || 6000;
 
+// 配置CORS选项
+const corsOptions = {
+  origin: '*',  // 允许任何来源
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  credentials: true
+};
+
 // 启用CORS
-app.use(cors());
+app.use(cors(corsOptions));
+
+// 添加预检请求处理
+app.options('*', cors(corsOptions));
+
+// 添加一个简单的健康检查端点
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', message: '代理服务器正常运行' });
+});
 
 // 设置axios默认配置
 axios.defaults.timeout = config.timeout || 15000;
@@ -323,7 +338,33 @@ router.get('/financial', async (req, res) => {
 app.use(config.apiPath, router);
 
 // 启动服务器
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`代理服务器运行在 http://localhost:${PORT}`);
   console.log(`API路径: ${config.baseUrl}${config.apiPath}`);
-}); 
+});
+
+// 处理进程退出信号
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
+process.on('uncaughtException', (error) => {
+  console.error('未捕获的异常:', error);
+  gracefulShutdown();
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('未处理的Promise拒绝:', reason);
+});
+
+// 优雅关闭函数
+function gracefulShutdown() {
+  console.log('正在关闭服务器...');
+  server.close(() => {
+    console.log('服务器已关闭');
+    process.exit(0);
+  });
+  
+  // 如果10秒内无法关闭，则强制退出
+  setTimeout(() => {
+    console.error('无法优雅关闭，强制退出');
+    process.exit(1);
+  }, 10000);
+} 

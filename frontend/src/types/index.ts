@@ -51,7 +51,8 @@ export interface ApiResponse<T> {
 // 配置接口
 export interface Config {
   apiUrl: string;
-  deepseekApiUrl?: string;
+  deepseekApiUrl: string;
+  deepseekApiKey?: string;
 }
 
 // 加载状态
