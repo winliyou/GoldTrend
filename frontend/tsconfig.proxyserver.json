@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "rootDir": "./proxy_server/src",
+    "outDir": "./proxy_server/dist",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "tsBuildInfoFile": "./proxy_server/dist/tsconfig.tsbuildinfo",
+    "paths": {
+      "@/*": [
+        "./proxy_server/src/*"
+      ]
+    }
+  },
+  "include": [
+    "proxy_server/src/**/*.ts"
+  ]
+}
