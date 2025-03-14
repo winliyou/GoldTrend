@@ -10,11 +10,28 @@ export interface NewsItem {
   id: string;
   title: string;
   source?: string;
-  date: string;
+  date?: string;
+  time?: string;
+  url?: string;
   content?: string;
   summary?: string;
   type: NewsType;
   selected?: boolean;
+}
+
+// 分析目标类型
+export type AnalysisTargetType = 'gold_price' | 'stock_market' | 'economic_policy' | 'geopolitical' | string;
+
+// 时间范围类型
+export type TimeFrameType = 'short' | 'medium' | 'long';
+
+// 分析设置接口
+export interface AnalysisSettings {
+  analysisTarget: AnalysisTargetType;
+  focusAreas: string[];
+  timeFrame: TimeFrameType;
+  analysisDepth: number;
+  additionalNotes?: string;
 }
 
 // 新闻分析结果接口
@@ -23,6 +40,7 @@ export interface AnalysisResult {
   gold_price_prediction: GoldPricePrediction;
   need_more_info: boolean;
   missing_info: string[];
+  raw_response?: string;
 }
 
 // 单条新闻分析
@@ -69,6 +87,7 @@ export interface AppState {
   financialNews: NewsItem[];
   selectedNews: NewsItem[];
   analysisResult: AnalysisResult | null;
+  analysisSettings: AnalysisSettings;
   loading: LoadingState;
   error: string | null;
   apiKey: string;
@@ -83,6 +102,7 @@ export interface AppActions {
   clearSelectedNews: () => void;
   analyzeNews: () => Promise<void>;
   setApiKey: (key: string) => void;
+  setAnalysisSettings: (settings: AnalysisSettings) => void;
 }
 
 // 应用存储
@@ -95,4 +115,5 @@ export interface AppStore {
   clearSelectedNews: () => void;
   analyzeNews: () => Promise<void>;
   setApiKey: (key: string) => void;
+  setAnalysisSettings: (settings: AnalysisSettings) => void;
 } 
