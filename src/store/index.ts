@@ -167,41 +167,7 @@ const actions = {
     // 清空已选择列表
     state.selectedNews = [];
   },
-  
-  // 分析选择的新闻
-  async analyzeNews() {
-    if (state.selectedNews.length === 0) {
-      state.error = '请先选择要分析的新闻';
-      return;
-    }
-    
-    // 检查所有选择的新闻是否都有内容
-    const newsWithoutContent = state.selectedNews.filter(news => !news.content);
-    if (newsWithoutContent.length > 0) {
-      // 获取所有缺少内容的新闻的内容
-      for (const news of newsWithoutContent) {
-        await actions.fetchNewsContent(news);
-      }
-    }
-    
-    state.loading.analysis = true;
-    state.error = null;
-    
-    try {
-      // 将分析设置传递给API
-      const result = await deepseekApi.analyzeNews(state.selectedNews, state.analysisSettings);
-      if (result.success && result.data) {
-        state.analysisResult = result.data;
-      } else {
-        state.error = result.message;
-      }
-    } catch (error) {
-      state.error = `分析新闻失败: ${error instanceof Error ? error.message : '未知错误'}`;
-      console.error(state.error);
-    } finally {
-      state.loading.analysis = false;
-    }
-  },
+
   
   // 使用流式响应分析新闻
   async analyzeNewsWithProgress(onProgress: (progress: { message?: string; percentage?: number; content?: string }) => void) {
