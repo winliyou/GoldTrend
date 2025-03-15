@@ -19,60 +19,72 @@ export function getApiKey(): string {
 
 // 解析SSE数据流
 function parseSSEData(data: string): string | null {
-  if (!data.startsWith('data: ')) return null;
-  const jsonStr = data.slice(6); // 移除 "data: " 前缀
-  if (jsonStr === '[DONE]') return null;
-  
-  try {
-    const parsed = JSON.parse(jsonStr);
-    return parsed.choices[0]?.delta?.content || '';
-  } catch (e) {
-    console.error('解析SSE数据失败:', e);
-    return null;
-  }
-}
-
-// 处理流式响应
-async function handleStreamResponse(
-  response: any, 
-  onChunk: (chunk: string) => void, 
-  onComplete: (fullText: string) => void
-): Promise<void> {
-  const reader = response.data;
-  let fullText = '';
-  let buffer = '';
-  
-  try {
-    // 处理流式数据
-    for await (const chunk of reader) {
-      const chunkText = new TextDecoder().decode(chunk);
-      buffer += chunkText;
-      
-      // 处理可能包含多个SSE消息的buffer
-      const lines = buffer.split('\n\n');
-      buffer = lines.pop() || ''; // 最后一行可能不完整，保留到下一次处理
-      
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        
-        const content = parseSSEData(line);
-        if (content !== null) {
-          fullText += content;
-          onChunk(content);
-        }
+  // 处理多行数据的情况
+  const lines = data.split('\n');
+  for (const line of lines) {
+    if (line.startsWith('data: ')) {
+      const jsonStr = line.slice(6).trim();
+      if (jsonStr === '[DONE]') return null;
+      try {
+        const parsed = JSON.parse(jsonStr);
+        return parsed.choices[0]?.delta?.content || '';
+      } catch (e) {
+        console.error('解析SSE数据失败:', e);
       }
     }
-    
-    // 处理最后可能剩余的数据
+  }
+  return null;
+}
+// 处理流式响应
+async function handleStreamResponse(
+  response: any,
+  onChunk: (chunk: string) => void,
+  onComplete: (fullText: string) => void
+): Promise<void> {
+  console.log("++++++response: ", response)
+  const reader = response.data.pipeThrough(new TextDecoderStream()).getReader();
+  if (!reader) {
+    throw new Error('无法获取响应流读取器');
+  }
+  let buffer = '';
+  let fullContent = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      console.log("++++value: ", value)
+      if (done) break;
+
+      // buffer += decoder.decode(value, { stream: true });
+      buffer += value;
+
+      let lastIndex = 0;
+      while (true) {
+        const eventEndIndex = buffer.indexOf('\n\n', lastIndex);
+        if (eventEndIndex === -1) break;
+
+        const eventData = buffer.slice(lastIndex, eventEndIndex);
+        lastIndex = eventEndIndex + 2;
+
+        const content = parseSSEData(eventData);
+        if (content !== null) {
+          onChunk(content);
+          fullContent += content;
+        }
+      }
+      buffer = buffer.slice(lastIndex);
+    }
+
+    // 处理剩余buffer
     if (buffer.trim()) {
       const content = parseSSEData(buffer);
       if (content !== null) {
-        fullText += content;
         onChunk(content);
+        fullContent += content;
       }
     }
-    
-    onComplete(fullText);
+
+    onComplete(fullContent);
   } catch (error) {
     console.error('处理流式响应失败:', error);
     throw error;
@@ -81,8 +93,8 @@ async function handleStreamResponse(
 
 // 分析新闻内容
 export async function analyzeNews(
-  newsList: NewsItem[], 
-  settings: AnalysisSettings, 
+  newsList: NewsItem[],
+  settings: AnalysisSettings,
   onProgress?: (text: string) => void
 ): Promise<ApiResponse<AnalysisResult>> {
   if (!DEEPSEEK_API_KEY) {
@@ -123,8 +135,8 @@ export async function analyzeNews(
     }
 
     // 根据分析重点生成提示词
-    const focusAreasPrompt = settings.focusAreas.length > 0 
-      ? `请特别关注以下方面：${settings.focusAreas.join('、')}。` 
+    const focusAreasPrompt = settings.focusAreas.length > 0
+      ? `请特别关注以下方面：${settings.focusAreas.join('、')}。`
       : '';
 
     // 根据时间范围生成提示词
@@ -142,15 +154,15 @@ export async function analyzeNews(
     }
 
     // 根据分析深度调整提示词
-    const depthPrompt = settings.analysisDepth <= 2 
-      ? '请提供简要分析。' 
-      : settings.analysisDepth >= 4 
-        ? '请提供深入详细的分析。' 
+    const depthPrompt = settings.analysisDepth <= 2
+      ? '请提供简要分析。'
+      : settings.analysisDepth >= 4
+        ? '请提供深入详细的分析。'
         : '请提供标准深度的分析。';
 
     // 附加说明
-    const additionalPrompt = settings.additionalNotes 
-      ? `附加要求：${settings.additionalNotes}` 
+    const additionalPrompt = settings.additionalNotes
+      ? `附加要求：${settings.additionalNotes}`
       : '';
 
     const prompt = `
@@ -195,7 +207,7 @@ ${newsContent}
     if (onProgress) {
       onProgress('正在连接DeepSeek API...');
     }
-    
+
     // 使用流式响应
     const response = await axios.post(
       DEEPSEEK_API_URL,
@@ -205,23 +217,24 @@ ${newsContent}
           { role: 'user', content: prompt }
         ],
         temperature: 1.0,
-        max_tokens: 8192,
         stream: true // 启用流式响应
       },
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+          'Accept': 'text/event-stream'
         },
-        responseType: 'stream'
+        responseType: 'stream',
+        adapter: "fetch"
       }
     );
 
     console.log('DeepSeek API流式响应开始');
-    
+
     let fullContent = '';
     let accumulatedContent = '';
-    
+
     // 处理流式响应
     await handleStreamResponse(
       response,
@@ -242,24 +255,30 @@ ${newsContent}
         }
       }
     );
-    
+
     console.log('DeepSeek API流式响应完成');
 
     let result: AnalysisResult;
-
     try {
-      // 尝试解析JSON
-      const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        result = JSON.parse(jsonMatch[0]);
-        // 添加原始回复
-        result.raw_response = fullContent;
-      } else {
-        throw new Error('API返回的结果不包含有效的JSON');
+      // 尝试多种方式提取JSON
+      const jsonStart = fullContent.indexOf('{');
+      const jsonEnd = fullContent.lastIndexOf('}');
+      if (jsonStart === -1 || jsonEnd === -1) {
+        throw new Error('未找到有效的JSON内容');
       }
+
+      const jsonStr = fullContent.slice(jsonStart, jsonEnd + 1);
+      result = JSON.parse(jsonStr);
+
+      // 验证必要字段
+      if (!result.analysis || !result.gold_price_prediction) {
+        throw new Error('API返回的数据结构不符合预期');
+      }
+
+      result.raw_response = fullContent;
     } catch (e) {
-      console.error('解析API返回的结果失败:', e);
-      throw new Error('无法解析API返回的结果');
+      console.error('解析失败:', e);
+      throw new Error(`解析API响应失败: ${e instanceof Error ? e.message : '未知错误'}`);
     }
 
     return {
