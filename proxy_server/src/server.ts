@@ -1,9 +1,10 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import * as cheerio from 'cheerio';
 import config from './config.js';
 import { NewsSourceSelector, NewsItem } from './types.js';
+import iconv from 'iconv-lite';
 
 const app = express();
 const PORT = config.port || 6000;
@@ -63,12 +64,14 @@ function createBrowserLikeHeaders(referer = '') {
     'Sec-Fetch-Site': 'none',
     'Sec-Fetch-User': '?1',
     'Upgrade-Insecure-Requests': '1',
-    'Referer': referer || 'https://www.google.com/'
+    'Referer': referer || 'https://www.google.com/',
+    'Accept-Charset': 'utf-8, gb2312, gbk, big5;q=0.7, *;q=0.3'
   };
 }
 
 // 时政新闻来源列表
-const politicalNewsSources: NewsSourceSelector[] = [
+const politicalNewsSources: NewsSourceSelector[] = []
+let aaa = [
   {
     name: '新华网国内',
     url: 'http://www.news.cn/domestic/',
@@ -126,115 +129,99 @@ const politicalNewsSources: NewsSourceSelector[] = [
   }
 ];
 
-// 金融新闻来源列表
+// 金融新闻来源列表（优化版）
 const financialNewsSources: NewsSourceSelector[] = [
   {
-    name: '东方财富网',
-    url: 'https://finance.eastmoney.com/',
+    name: '中国经济网金融频道',
+    url: 'http://finance.ce.cn/',
     selectors: [
+      '.pictxt1',
+      '.txt2 h4',
+      '.list_1 li'
+    ],
+    titleSelector: 'a',
+    urlSelector: 'a',
+    timeSelector: '.time',
+    baseUrl: 'http://finance.ce.cn'
+  },
+]
+let bbb = [
+  // 新增国内源
+  {
+    name: '和讯网',
+    url: 'http://www.hexun.com/',
+    selectors: [
+      '.newsList li',
+      '.articleList li',
+    ],
+    titleSelector: 'a',
+    urlSelector: 'a',
+    timeSelector: '.time',
+    baseUrl: 'http://www.hexun.com'
+  },
+  {
+    name: '证券时报网',
+    url: 'http://www.stcn.com/',
+    selectors: [
+      '.top-news-list li',
+      '.cc-list li',
+      '.cc-list',
+      '.news-box li'
+    ],
+    titleSelector: 'a',
+    urlSelector: 'a',
+    timeSelector: '.time',
+    baseUrl: 'http://www.stcn.com'
+  },
+  {
+    name: '每日经济新闻',
+    url: 'http://www.nbd.com.cn/',
+    selectors: [
+      '#toutiao h3',
       '.news-list li',
-      '.news_item',
-      '.news-hot li',
-      '.news_list li',
-      '.content-list li'
+      '.normal-list li'
     ],
     titleSelector: 'a',
     urlSelector: 'a',
     timeSelector: '.time',
-    baseUrl: 'https://finance.eastmoney.com'
+    baseUrl: 'http://www.nbd.com.cn'
   },
   {
-    name: '中国证券网',
-    url: 'https://www.cnstock.com/',
+    name: '中国经济网金融频道',
+    url: 'http://finance.ce.cn/',
     selectors: [
-      '.new-list li',
-      '.hotNews-list li',
-      '.content-list li'
+      '.pictxt1',
+      '.txt2 h4',
+      '.list_1 li'
     ],
     titleSelector: 'a',
     urlSelector: 'a',
     timeSelector: '.time',
-    baseUrl: 'https://www.cnstock.com'
+    baseUrl: 'http://finance.ce.cn'
   },
+  // 新增专业投资社区
   {
-    name: '金融时报中文网',
-    url: 'http://www.ftchinese.com/',
+    name: '格隆汇',
+    url: 'https://www.gelonghui.com/',
     selectors: [
-      '.item-container',
-      '.news-item',
-      '.list-item'
-    ],
-    titleSelector: 'a',
-    urlSelector: 'a',
-    timeSelector: '.time',
-    baseUrl: 'http://www.ftchinese.com'
-  },
-  {
-    name: '第一财经',
-    url: 'https://www.yicai.com/',
-    selectors: [
-      '.m-list li',
-      '.news-list li',
-      '.hot-news li'
-    ],
-    titleSelector: 'a',
-    urlSelector: 'a',
-    timeSelector: '.time',
-    baseUrl: 'https://www.yicai.com'
-  },
-  // 新增财经信息源
-  {
-    name: '新浪财经',
-    url: 'https://finance.sina.com.cn/',
-    selectors: [
-      '.news-item',
-      '.feed-card-item',
-      '.fin_tabs0_c0 li',
-      '.m-list li'
-    ],
-    titleSelector: 'a',
-    urlSelector: 'a',
-    timeSelector: '.time',
-    baseUrl: 'https://finance.sina.com.cn'
-  },
-  {
-    name: '腾讯财经',
-    url: 'https://finance.qq.com/',
-    selectors: [
-      '.list li',
-      '.newslist li',
-      '.txtArea li'
-    ],
-    titleSelector: 'a',
-    urlSelector: 'a',
-    timeSelector: '.time',
-    baseUrl: 'https://finance.qq.com'
-  },
-  {
-    name: '财新网',
-    url: 'https://www.caixin.com/',
-    selectors: [
-      '.news_item',
-      '.ren_item',
-      '.list_item'
-    ],
-    titleSelector: 'a',
-    urlSelector: 'a',
-    timeSelector: '.time',
-    baseUrl: 'https://www.caixin.com'
-  },
-  {
-    name: '华尔街见闻',
-    url: 'https://wallstreetcn.com/',
-    selectors: [
-      '.article-entry',
       '.article-item',
-      '.news-item'
+      '.infinite-content li'
     ],
     titleSelector: 'a',
     urlSelector: 'a',
     timeSelector: '.time',
-    baseUrl: 'https://wallstreetcn.com'
+    baseUrl: 'https://www.gelonghui.com'
+  },
+  {
+    name: '金十数据',
+    url: 'https://www.jin10.com/',
+    selectors: [
+      '.vip-rank-list_main'
+    ],
+    titleSelector: '.title',
+    urlSelector: 'a',
+    timeSelector: '.time',
+    baseUrl: 'https://www.jin10.com'
   }
 ];
 
@@ -243,15 +230,22 @@ async function fetchNewsContent(url: string): Promise<string> {
   try {
     console.log(`开始获取新闻内容: ${url}`);
 
-    // 使用带有浏览器特征的请求头
+    // 使用arraybuffer类型获取原始数据
     const response = await axios.get(url, {
       headers: createBrowserLikeHeaders(url),
-      timeout: 30000 // 增加超时时间
+      timeout: 30000,
+      responseType: 'arraybuffer' // 修改响应类型为arraybuffer
     });
 
     console.log('成功获取新闻页面');
 
-    const $ = cheerio.load(response.data);
+    // 检测编码类型
+    const encoding = detectEncoding(response);
+    console.log(`检测到编码格式: ${encoding}`);
+
+    // 直接使用检测到的编码进行解码
+    const decodedData = iconv.decode(Buffer.from(response.data), encoding);
+    const $ = cheerio.load(decodedData);
 
     // 尝试提取新闻内容，不同网站的结构可能不同
     let content = '';
@@ -291,14 +285,17 @@ async function fetchNewsContent(url: string): Promise<string> {
     }
 
     console.log(`成功获取新闻内容，长度: ${content.length}`);
+    console.log(`原始URL: ${url}`);
+    console.log(`最终使用编码: ${encoding}`);
+    console.log(`解码后前50字符: ${decodedData.substring(0, 50)}`);
     return content;
   } catch (error) {
     // 简化错误处理
     let errorMessage = '获取新闻内容失败';
     if (axios.isAxiosError(error)) {
-      errorMessage += error.code ? `: ${error.code}` : 
-                     error.response ? `: ${error.response.status}` : 
-                     ': 网络错误';
+      errorMessage += error.code ? `: ${error.code}` :
+        error.response ? `: ${error.response.status}` :
+          ': 网络错误';
     } else {
       errorMessage += error instanceof Error ? `: ${error.name}` : ': 未知错误';
     }
@@ -307,9 +304,38 @@ async function fetchNewsContent(url: string): Promise<string> {
   }
 }
 
+// 修改detectEncoding函数
+function detectEncoding(response: AxiosResponse): string {
+  try {
+    // 优先从HTML meta标签获取编码
+    const bufferData = Buffer.from(response.data.slice(0, 1024));
+    const htmlChunk = bufferData.toString('ascii');
+
+    const charsetMatch = htmlChunk.match(
+      /<meta[^>]+charset=["']?([a-zA-Z0-9-]+)/i
+    ) || htmlChunk.match(
+      /<meta[^>]+content=["'][^;]+;charset=([a-zA-Z0-9-]+)/i
+    );
+
+    if (charsetMatch?.[1]) {
+      return charsetMatch[1].toLowerCase();
+    }
+
+    // 其次从HTTP头获取编码
+    const headerCharset = response.headers['content-type']?.match(/charset=([^;]+)/i)?.[1];
+    if (headerCharset) {
+      return headerCharset.toLowerCase();
+    }
+
+    return 'utf-8';
+  } catch (e) {
+    return 'utf-8';
+  }
+}
+
 // 从多个来源抓取新闻
 async function fetchNewsFromMultipleSources(
-  sources: NewsSourceSelector[], 
+  sources: NewsSourceSelector[],
   type: 'political' | 'financial',
   res?: Response, // 可选的响应对象，用于流式传输
   onSourceComplete?: (source: string, news: NewsItem[]) => void // 可选的回调函数，当一个源的新闻获取完成时调用
@@ -325,13 +351,29 @@ async function fetchNewsFromMultipleSources(
       try {
         console.log(`尝试从 ${source.name} 抓取新闻...`);
 
-        // 使用带有浏览器特征的请求头
+        // 使用arraybuffer获取原始数据
         const response = await axios.get(source.url, {
           headers: createBrowserLikeHeaders(source.url),
-          timeout: 30000 // 增加超时时间
+          timeout: 30000,
+          responseType: 'arraybuffer' // 添加响应类型
         });
 
-        const $ = cheerio.load(response.data);
+        // 检测编码并解码
+        const encoding = detectEncoding(response);
+        console.log("after detectEncoding, encoding:_", encoding)
+        console.log("response.data: ", response.data)
+        const rawData = Buffer.isBuffer(response.data) ? response.data : Buffer.from(response.data, 'binary');
+        let decodedData = ''
+        try {
+          decodedData = iconv.decode(rawData, encoding);
+        } catch (error) {
+          console.log("decode error: ", error)
+        }
+
+        console.log("after decode")
+        const $ = cheerio.load(decodedData);
+        console.log('decodeData:  ', decodedData)
+
         let sourceNews: NewsItem[] = [];
 
         for (const selector of source.selectors) {
@@ -346,7 +388,7 @@ async function fetchNewsFromMultipleSources(
             if (!title) {
               title = $element.text().trim();
             }
-
+            console.log("+++++ title: ", title)
             if (title && url) {
               // 确保URL是完整的
               if (!url.startsWith('http')) {
@@ -377,12 +419,12 @@ async function fetchNewsFromMultipleSources(
         }
 
         console.log(`从 ${source.name} 获取到 ${sourceNews.length} 条新闻`);
-        
+
         // 如果提供了响应对象和回调函数，则立即发送部分数据
         if (res && sourceNews.length > 0) {
           // 将新闻添加到总列表
           allNews = [...allNews, ...sourceNews];
-          
+
           // 发送部分数据到客户端
           res.write(JSON.stringify({
             partial: true,
@@ -390,21 +432,21 @@ async function fetchNewsFromMultipleSources(
             news: sourceNews,
             total: allNews.length
           }) + '\n');
-          
+
           // 调用回调函数
           if (onSourceComplete) {
             onSourceComplete(source.name, sourceNews);
           }
         }
-        
+
         return sourceNews;
       } catch (error) {
         // 简化错误处理
         let errorMessage = `从 ${source.name} 抓取新闻失败`;
         if (axios.isAxiosError(error)) {
-          errorMessage += error.code ? `: ${error.code}` : 
-                         error.response ? `: ${error.response.status}` : 
-                         ': 网络错误';
+          errorMessage += error.code ? `: ${error.code}` :
+            error.response ? `: ${error.response.status}` :
+              ': 网络错误';
         } else {
           errorMessage += error instanceof Error ? `: ${error.name}` : ': 未知错误';
         }
@@ -471,9 +513,9 @@ async function fetchNewsFromMultipleSources(
     // 简化错误处理
     let errorMessage = `抓取${type === 'political' ? '时政' : '金融'}新闻失败`;
     if (axios.isAxiosError(error)) {
-      errorMessage += error.code ? `: ${error.code}` : 
-                     error.response ? `: ${error.response.status}` : 
-                     ': 网络错误';
+      errorMessage += error.code ? `: ${error.code}` :
+        error.response ? `: ${error.response.status}` :
+          ': 网络错误';
     } else {
       errorMessage += error instanceof Error ? `: ${error.name}` : ': 未知错误';
     }
@@ -491,29 +533,29 @@ router.get('/political', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Transfer-Encoding', 'chunked');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  
+
   // 初始化新闻列表
   let allNews: NewsItem[] = [];
-  
+
   (async () => {
     try {
       console.log('开始抓取时政新闻...');
-      
+
       // 使用 fetchNewsFromMultipleSources 函数获取新闻
       allNews = await fetchNewsFromMultipleSources(
-        politicalNewsSources, 
+        politicalNewsSources,
         'political',
         res, // 传递响应对象，用于流式传输
         (source, news) => {
           console.log(`从 ${source} 获取到 ${news.length} 条时政新闻，已发送到客户端`);
         }
       );
-      
+
       // 限制返回的新闻数量
       if (allNews.length > config.newsSources.maxTotalNews) {
         allNews = allNews.slice(0, config.newsSources.maxTotalNews);
       }
-      
+
       // 发送最终完整数据
       res.write(JSON.stringify({
         partial: false,
@@ -521,23 +563,23 @@ router.get('/political', (req, res) => {
         news: allNews,
         total: allNews.length
       }));
-      
+
       // 结束响应
       res.end();
-      
+
       console.log(`成功获取 ${allNews.length} 条时政新闻`);
     } catch (error) {
       // 简化错误处理
       let errorMessage = '抓取时政新闻失败';
       if (axios.isAxiosError(error)) {
-        errorMessage += error.code ? `: ${error.code}` : 
-                       error.response ? `: ${error.response.status}` : 
-                       ': 网络错误';
+        errorMessage += error.code ? `: ${error.code}` :
+          error.response ? `: ${error.response.status}` :
+            ': 网络错误';
       } else {
         errorMessage += error instanceof Error ? `: ${error.name}` : ': 未知错误';
       }
       console.error(errorMessage);
-      
+
       // 如果已经有一些新闻，仍然返回它们
       if (allNews.length > 0) {
         res.write(JSON.stringify({
@@ -562,29 +604,29 @@ router.get('/financial', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Transfer-Encoding', 'chunked');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  
+
   // 初始化新闻列表
   let allNews: NewsItem[] = [];
-  
+
   (async () => {
     try {
       console.log('开始抓取金融新闻...');
-      
+
       // 使用 fetchNewsFromMultipleSources 函数获取新闻
       allNews = await fetchNewsFromMultipleSources(
-        financialNewsSources, 
+        financialNewsSources,
         'financial',
         res, // 传递响应对象，用于流式传输
         (source, news) => {
           console.log(`从 ${source} 获取到 ${news.length} 条金融新闻，已发送到客户端`);
         }
       );
-      
+
       // 限制返回的新闻数量
       if (allNews.length > config.newsSources.maxTotalNews) {
         allNews = allNews.slice(0, config.newsSources.maxTotalNews);
       }
-      
+
       // 发送最终完整数据
       res.write(JSON.stringify({
         partial: false,
@@ -592,23 +634,23 @@ router.get('/financial', (req, res) => {
         news: allNews,
         total: allNews.length
       }));
-      
+
       // 结束响应
       res.end();
-      
+
       console.log(`成功获取 ${allNews.length} 条金融新闻`);
     } catch (error) {
       // 简化错误处理
       let errorMessage = '抓取金融新闻失败';
       if (axios.isAxiosError(error)) {
-        errorMessage += error.code ? `: ${error.code}` : 
-                       error.response ? `: ${error.response.status}` : 
-                       ': 网络错误';
+        errorMessage += error.code ? `: ${error.code}` :
+          error.response ? `: ${error.response.status}` :
+            ': 网络错误';
       } else {
         errorMessage += error instanceof Error ? `: ${error.name}` : ': 未知错误';
       }
       console.error(errorMessage);
-      
+
       // 如果已经有一些新闻，仍然返回它们
       if (allNews.length > 0) {
         res.write(JSON.stringify({
@@ -648,9 +690,9 @@ router.get('/content', (req, res) => {
       // 简化错误处理
       let errorMessage = '获取URL内容失败';
       if (axios.isAxiosError(error)) {
-        errorMessage += error.code ? `: ${error.code}` : 
-                       error.response ? `: ${error.response.status}` : 
-                       ': 网络错误';
+        errorMessage += error.code ? `: ${error.code}` :
+          error.response ? `: ${error.response.status}` :
+            ': 网络错误';
       } else {
         errorMessage += error instanceof Error ? `: ${error.name}` : ': 未知错误';
       }
@@ -666,21 +708,21 @@ router.get('/:type/content/:id', (req, res) => {
     try {
       const { type, id } = req.params;
       const { url } = req.query; // 允许直接通过URL参数获取内容
-      
+
       if (!type || !id) {
         res.status(400).json({ error: '缺少必要参数' });
         return;
       }
-      
+
       if (type !== 'political' && type !== 'financial') {
         res.status(400).json({ error: '新闻类型无效' });
         return;
       }
-      
+
       console.log(`尝试获取${type === 'political' ? '时政' : '金融'}新闻内容，ID: ${id}`);
-      
+
       let content = '';
-      
+
       // 如果提供了URL，直接获取内容
       if (url && typeof url === 'string') {
         content = await fetchNewsContent(url);
@@ -689,7 +731,7 @@ router.get('/:type/content/:id', (req, res) => {
         res.status(400).json({ error: '缺少URL参数，无法获取内容' });
         return;
       }
-      
+
       // 构造一个基本的新闻对象返回
       res.json({
         id,
@@ -701,9 +743,9 @@ router.get('/:type/content/:id', (req, res) => {
       // 简化错误处理
       let errorMessage = '获取新闻内容失败';
       if (axios.isAxiosError(error)) {
-        errorMessage += error.code ? `: ${error.code}` : 
-                       error.response ? `: ${error.response.status}` : 
-                       ': 网络错误';
+        errorMessage += error.code ? `: ${error.code}` :
+          error.response ? `: ${error.response.status}` :
+            ': 网络错误';
       } else {
         errorMessage += error instanceof Error ? `: ${error.name}` : ': 未知错误';
       }

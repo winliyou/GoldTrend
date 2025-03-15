@@ -53,6 +53,7 @@ export async function fetchFinancialNews(): Promise<NewsItem[]> {
     } else {
       // 回退到普通JSON响应
       const data = await response.json();
+      console.log("++++++++ data: ", data)
       return data;
     }
   } catch (error) {
@@ -88,6 +89,7 @@ async function processStreamResponse(reader: ReadableStreamDefaultReader<Uint8Ar
         
         try {
           const data = JSON.parse(line);
+          console.log("++++ data: ", data)
           
           // 处理部分数据
           if (data.partial && data.news) {
