@@ -70,8 +70,7 @@ function createBrowserLikeHeaders(referer = '') {
 }
 
 // 时政新闻来源列表
-const politicalNewsSources: NewsSourceSelector[] = []
-let aaa = [
+const politicalNewsSources: NewsSourceSelector[] = [
   {
     name: '新华网国内',
     url: 'http://www.news.cn/domestic/',
@@ -131,21 +130,6 @@ let aaa = [
 
 // 金融新闻来源列表（优化版）
 const financialNewsSources: NewsSourceSelector[] = [
-  {
-    name: '中国经济网金融频道',
-    url: 'http://finance.ce.cn/',
-    selectors: [
-      '.pictxt1',
-      '.txt2 h4',
-      '.list_1 li'
-    ],
-    titleSelector: 'a',
-    urlSelector: 'a',
-    timeSelector: '.time',
-    baseUrl: 'http://finance.ce.cn'
-  },
-]
-let bbb = [
   // 新增国内源
   {
     name: '和讯网',
