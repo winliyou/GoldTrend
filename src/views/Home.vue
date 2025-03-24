@@ -715,39 +715,19 @@ const clearSelectedNews = () => {
   // 更新本地状态
   state.selectedNews = [];
 };
-
-// 分析新闻
+// 修改分析新闻方法，支持部分新闻分析
 const analyzeNews = async () => {
   if (!apiKey.value) {
     ElMessage.warning('请先设置API密钥');
     return;
   }
-  
-  // 如果没有保存过分析设置，使用默认设置
-  if (!state.dialogs.analysisSettings.saved) {
-    const defaultSettings = {
-      analysisTarget: 'gold_price',
-      focusAreas: ['经济因素', '政治因素'],
-      timeFrame: 'medium',
-      analysisDepth: 3,
-      additionalNotes: ''
-    };
-    
-    // 将默认设置应用到store中
-    store.setAnalysisSettings(defaultSettings);
-  } else {
-    // 获取用户设置的分析目标
-    const settings = { ...state.dialogs.analysisSettings.form };
-    
-    // 如果是自定义目标，使用自定义目标文本
-    if (settings.analysisTarget === 'custom') {
-      settings.analysisTarget = settings.customTarget;
-    }
-    
-    // 将设置应用到store中
-    store.setAnalysisSettings(settings);
+
+  // 检查是否有已选择的新闻
+  if (state.selectedNews.length === 0) {
+    ElMessage.warning('请先选择要分析的新闻');
+    return;
   }
-  
+
   // 重置分析进度
   state.analysisProgress = {
     percentage: 0,
@@ -755,10 +735,10 @@ const analyzeNews = async () => {
     status: '',
     streamContent: ''
   };
-  
+
   // 设置加载状态
   state.loading.analysis = true;
-  
+
   try {
     // 使用流式响应进行分析
     const result = await store.analyzeNewsWithProgress(
@@ -772,46 +752,23 @@ const analyzeNews = async () => {
         if (progress.content) {
           state.analysisProgress.streamContent += progress.content;
         }
-        
-        // 根据进度设置状态
-        if (state.analysisProgress.percentage < 30) {
-          state.analysisProgress.status = '';
-        } else if (state.analysisProgress.percentage < 70) {
-          state.analysisProgress.status = 'warning';
-        } else {
-          state.analysisProgress.status = 'success';
-        }
       }
     );
-    
+
     // 更新分析结果
     state.analysisResult = store.state.analysisResult;
-    
+
     if (store.state.error) {
       ElMessage.error(store.state.error);
       state.analysisProgress.status = 'exception';
       state.analysisProgress.message = `分析失败: ${store.state.error}`;
-    } else if (state.analysisResult) {
-      ElMessage.success('分析完成');
-      state.analysisProgress.percentage = 100;
-      state.analysisProgress.status = 'success';
-      state.analysisProgress.message = '分析完成';
-    } else {
-      ElMessage.error('未能获取分析结果');
-      state.analysisProgress.status = 'exception';
-      state.analysisProgress.message = '分析失败: 未能获取结果';
     }
   } catch (error) {
-    console.error('分析失败:', error);
-    ElMessage.error(`分析失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    ElMessage.error(`分析新闻失败: ${error instanceof Error ? error.message : '未知错误'}`);
     state.analysisProgress.status = 'exception';
     state.analysisProgress.message = `分析失败: ${error instanceof Error ? error.message : '未知错误'}`;
-    state.analysisProgress.percentage = 100;
   } finally {
-    // 延迟关闭加载状态，让用户看到100%的进度
-    setTimeout(() => {
-      state.loading.analysis = false;
-    }, 1000);
+    state.loading.analysis = false;
   }
 };
 

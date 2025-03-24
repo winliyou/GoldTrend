@@ -317,12 +317,12 @@ function detectEncoding(response: AxiosResponse): string {
   }
 }
 
-// 从多个来源抓取新闻
+// 优化新闻获取方法，增加并发控制和流式处理
 async function fetchNewsFromMultipleSources(
   sources: NewsSourceSelector[],
   type: 'political' | 'financial',
-  res?: Response, // 可选的响应对象，用于流式传输
-  onSourceComplete?: (source: string, news: NewsItem[]) => void // 可选的回调函数，当一个源的新闻获取完成时调用
+  res?: Response,
+  onSourceComplete?: (source: string, news: NewsItem[]) => void
 ): Promise<NewsItem[]> {
   let allNews: NewsItem[] = [];
   let newsId = 0;
@@ -330,161 +330,95 @@ async function fetchNewsFromMultipleSources(
   try {
     console.log(`开始并行抓取${type === 'political' ? '时政' : '金融'}新闻...`);
 
-    // 创建所有来源的抓取任务
-    const fetchTasks = sources.map(async (source) => {
-      try {
-        console.log(`尝试从 ${source.name} 抓取新闻...`);
+    // 使用并发控制
+    const concurrencyLimit = 5;
+    const chunks = [];
+    for (let i = 0; i < sources.length; i += concurrencyLimit) {
+      chunks.push(sources.slice(i, i + concurrencyLimit));
+    }
 
-        // 使用arraybuffer获取原始数据
-        const response = await axios.get(source.url, {
-          headers: createBrowserLikeHeaders(source.url),
-          timeout: 30000,
-          responseType: 'arraybuffer' // 添加响应类型
-        });
-
-        // 检测编码并解码
-        const encoding = detectEncoding(response);
-        console.log("after detectEncoding, encoding:_", encoding)
-        console.log("response.data: ", response.data)
-        const rawData = Buffer.isBuffer(response.data) ? response.data : Buffer.from(response.data, 'binary');
-        let decodedData = ''
+    for (const chunk of chunks) {
+      const fetchTasks = chunk.map(async (source) => {
         try {
-          decodedData = iconv.decode(rawData, encoding);
-        } catch (error) {
-          console.log("decode error: ", error)
-        }
-
-        console.log("after decode")
-        const $ = cheerio.load(decodedData);
-        console.log('decodeData:  ', decodedData)
-
-        let sourceNews: NewsItem[] = [];
-
-        for (const selector of source.selectors) {
-          console.log(`尝试选择器: ${selector}`);
-          $(selector).each((index, element) => {
-            const $element = $(element);
-            let title = $element.find(source.titleSelector).text().trim();
-            let url = $element.find(source.urlSelector).attr('href') || '';
-            let time = $element.find(source.timeSelector).text().trim() || new Date().toLocaleString();
-
-            // 如果没有找到标题，尝试其他方式
-            if (!title) {
-              title = $element.text().trim();
-            }
-            console.log("+++++ title: ", title)
-            if (title && url) {
-              // 确保URL是完整的
-              if (!url.startsWith('http')) {
-                url = url.startsWith('/')
-                  ? `${source.baseUrl}${url}`
-                  : `${source.baseUrl}/${url}`;
-              }
-
-              // 避免重复新闻
-              if (!sourceNews.some(news => news.title === title)) {
-                sourceNews.push({
-                  id: Date.now() + Math.floor(Math.random() * 1000) + sourceNews.length,
-                  title,
-                  url,
-                  time,
-                  source: source.name,
-                  type,
-                  content: '' // 内容将在后面获取
-                });
-              }
-            }
+          console.log(`尝试从 ${source.name} 抓取新闻...`);
+          const response = await axios.get(source.url, {
+            headers: createBrowserLikeHeaders(source.url),
+            timeout: 30000,
+            responseType: 'arraybuffer'
           });
 
-          // 如果找到了足够的新闻，就停止尝试其他选择器
-          if (sourceNews.length >= config.newsSources.maxNewsPerSource) {
-            break;
+          // 检测编码并解码
+          const encoding = detectEncoding(response);
+          const rawData = Buffer.isBuffer(response.data) ? response.data : Buffer.from(response.data, 'binary');
+          const decodedData = iconv.decode(rawData, encoding);
+          const $ = cheerio.load(decodedData);
+
+          let sourceNews: NewsItem[] = [];
+
+          for (const selector of source.selectors) {
+            console.log(`尝试选择器: ${selector}`);
+            $(selector).each((index, element) => {
+              const $element = $(element);
+              let title = $element.find(source.titleSelector).text().trim();
+              let url = $element.find(source.urlSelector).attr('href') || '';
+              let time = $element.find(source.timeSelector).text().trim() || new Date().toLocaleString();
+
+              // 如果没有找到标题，尝试其他方式
+              if (!title) {
+                title = $element.text().trim();
+              }
+              console.log("+++++ title: ", title)
+              if (title && url) {
+                // 确保URL是完整的
+                if (!url.startsWith('http')) {
+                  url = url.startsWith('/')
+                    ? `${source.baseUrl}${url}`
+                    : `${source.baseUrl}/${url}`;
+                }
+
+                // 避免重复新闻
+                if (!sourceNews.some(news => news.title === title)) {
+                  sourceNews.push({
+                    id: Date.now() + Math.floor(Math.random() * 1000) + sourceNews.length,
+                    title,
+                    url,
+                    time,
+                    source: source.name,
+                    type,
+                    content: '' // 内容将在后面获取
+                  });
+                }
+              }
+            });
+
+            // 如果找到了足够的新闻，就停止尝试其他选择器
+            if (sourceNews.length >= config.newsSources.maxNewsPerSource) {
+              break;
+            }
           }
-        }
 
-        console.log(`从 ${source.name} 获取到 ${sourceNews.length} 条新闻`);
+          console.log(`从 ${source.name} 获取到 ${sourceNews.length} 条新闻`);
 
-        // 如果提供了响应对象和回调函数，则立即发送部分数据
-        if (res && sourceNews.length > 0) {
-          // 将新闻添加到总列表
-          allNews = [...allNews, ...sourceNews];
-
-          // 发送部分数据到客户端
-          res.write(JSON.stringify({
-            partial: true,
-            source: source.name,
-            news: sourceNews,
-            total: allNews.length
-          }) + '\n');
-
-          // 调用回调函数
-          if (onSourceComplete) {
-            onSourceComplete(source.name, sourceNews);
+          // 立即发送部分数据
+          if (res && sourceNews.length > 0) {
+            allNews = [...allNews, ...sourceNews];
+            res.write(JSON.stringify({
+              partial: true,
+              source: source.name,
+              news: sourceNews,
+              total: allNews.length
+            }) + '\n');
           }
+
+          return sourceNews;
+        } catch (error) {
+          console.error(`从 ${source.name} 抓取新闻失败: ${error}`);
+          return [];
         }
+      });
 
-        return sourceNews;
-      } catch (error) {
-        // 简化错误处理
-        let errorMessage = `从 ${source.name} 抓取新闻失败`;
-        if (axios.isAxiosError(error)) {
-          errorMessage += error.code ? `: ${error.code}` :
-            error.response ? `: ${error.response.status}` :
-              ': 网络错误';
-        } else {
-          errorMessage += error instanceof Error ? `: ${error.name}` : ': 未知错误';
-        }
-        console.error(errorMessage);
-        // 返回空数组，不影响其他来源
-        return [];
-      }
-    });
-
-    // 并行执行所有抓取任务
-    const results = await Promise.allSettled(fetchTasks);
-
-    // 处理结果
-    results.forEach((result) => {
-      if (result.status === 'fulfilled') {
-        // 如果没有使用流式传输，则在这里添加新闻到总列表
-        if (!res) {
-          allNews = [...allNews, ...result.value];
-        }
-        // 注意：如果使用流式传输，我们已经在每个任务中添加了新闻到allNews
-      }
-    });
-
-    // 如果配置了获取内容，则同时获取新闻内容
-    if (config.newsSources.fetchContentWithList && allNews.length > 0) {
-      console.log('开始并行获取新闻内容...');
-
-      // 限制并发数量，避免同时发送太多请求
-      const concurrencyLimit = 5;
-      const chunks = [];
-
-      // 将新闻分成多个小块
-      for (let i = 0; i < allNews.length; i += concurrencyLimit) {
-        chunks.push(allNews.slice(i, i + concurrencyLimit));
-      }
-
-      // 逐块处理，每块内并行
-      for (const chunk of chunks) {
-        const contentPromises = chunk.map(async (news) => {
-          try {
-            news.content = await fetchNewsContent(news.url);
-            return news;
-          } catch (error) {
-            // 这里不需要再处理错误，因为fetchNewsContent已经处理过了
-            news.content = '获取内容失败';
-            return news;
-          }
-        });
-
-        // 等待当前块的所有请求完成
-        await Promise.allSettled(contentPromises);
-      }
-
-      console.log('所有新闻内容获取完成');
+      // 等待当前chunk的所有请求完成
+      await Promise.allSettled(fetchTasks);
     }
 
     // 限制返回的新闻数量
@@ -494,17 +428,8 @@ async function fetchNewsFromMultipleSources(
 
     return allNews;
   } catch (error) {
-    // 简化错误处理
-    let errorMessage = `抓取${type === 'political' ? '时政' : '金融'}新闻失败`;
-    if (axios.isAxiosError(error)) {
-      errorMessage += error.code ? `: ${error.code}` :
-        error.response ? `: ${error.response.status}` :
-          ': 网络错误';
-    } else {
-      errorMessage += error instanceof Error ? `: ${error.name}` : ': 未知错误';
-    }
-    console.error(errorMessage);
-    return allNews; // 返回已获取的新闻，即使出错
+    console.error(`抓取${type === 'political' ? '时政' : '金融'}新闻失败: ${error}`);
+    return allNews;
   }
 }
 
